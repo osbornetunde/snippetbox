@@ -22,10 +22,12 @@ func main() {
 	dsn := flag.String("dsn", "web:pass@/snippetbox?parseTime=true", "MySQL data source name")
 	flag.Parse()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level:     slog.LevelDebug,
-		AddSource: true,
-	}))
+	//logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	//	Level:     slog.LevelDebug,
+	//	AddSource: true,
+	//}))
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	db, err := openDB(*dsn)
 	if err != nil {
