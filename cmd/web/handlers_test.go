@@ -181,3 +181,142 @@ func TestUserSignup(t *testing.T) {
 
 	t.Logf("CSRF Token: %q", validCSRFToken)
 }
+
+func TestSnippetCreate(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	t.Run("Unauthenticated", func(t *testing.T) {
+		code, headers, _ := ts.get(t, "/snippet/create")
+
+		assert.Equal(t, http.StatusSeeOther, code)
+		assert.Equal(t, headers.Get("Location"), "/user/login")
+	})
+
+	t.Run("Authenticated", func(t *testing.T) {
+		aboveHundredLengthTitle := "Lorem ipsum Nunc Mauris posuere blandit fermentum morbi Vivamus Aliquam nec vitae neque potenti ex purus dapibus feugiat eleifend amet Fusce Quisque mi dolor facilisis feugiat vitae Nulla Ut sem porta quis fermentum Pellentesque volutpat senectus ligula volutpat suscipit molestie suscipit lectus Ut varius a Etiam Donec erat Morbi Nam posuere id lobortis In Suspendisse elit auctor finibus Morbi ornare Aenean Vivamus Aliquam sem quis molestie pulvinar Aenean Aenean molestie vulputate efficitur Vestibulum sem Nam Phasellus Quisque amet Praesent Curabitur eu quis habitasse Donec maximus rutrum consectetur Sed facilisis Mauris Mauris libero Suspendisse tincidunt cursus Nunc Aenean Nam ultrices bibendum rhoncus"
+		_, _, body := ts.get(t, "/user/login")
+		validAuthCsrfToken := extractCSRFToken(t, body)
+
+		const (
+			validEmail    = "alice@example.com"
+			validPassword = "pa55word"
+			formTag       = "<form action='/snippet/create' method='POST'>"
+		)
+
+		tests := []struct {
+			name            string
+			userEmail       string
+			userPassword    string
+			signInCsrfToken string
+			signInWantCode  int
+			wantFormTag     string
+			wantCode        int
+			title           string
+			content         string
+			expires         string
+			viewSnippetPath string
+		}{
+			{
+				name:            "Authenticated and create snippet",
+				userEmail:       validEmail,
+				userPassword:    validPassword,
+				signInCsrfToken: validAuthCsrfToken,
+				signInWantCode:  http.StatusOK,
+				wantFormTag:     formTag,
+				wantCode:        http.StatusSeeOther,
+				title:           "Hello World",
+				content:         "Happy Birthday people",
+				expires:         "365",
+				viewSnippetPath: "/snippet/view/2",
+			}, {
+				name:            "Authenticated and fail to create snippet due empty title",
+				userEmail:       validEmail,
+				userPassword:    validPassword,
+				signInCsrfToken: validAuthCsrfToken,
+				signInWantCode:  http.StatusOK,
+				wantFormTag:     formTag,
+				wantCode:        http.StatusUnprocessableEntity,
+				title:           "",
+				content:         "Happy Birthday people",
+				expires:         "365",
+				viewSnippetPath: "",
+			}, {
+				name:            "Authenticated and fail to create snippet due empty content",
+				userEmail:       validEmail,
+				userPassword:    validPassword,
+				signInCsrfToken: validAuthCsrfToken,
+				signInWantCode:  http.StatusOK,
+				wantFormTag:     formTag,
+				wantCode:        http.StatusUnprocessableEntity,
+				title:           "Hello World",
+				content:         "",
+				expires:         "365",
+				viewSnippetPath: "",
+			}, {
+				name:            "Authenticated and fail to create snippet due empty expires",
+				userEmail:       validEmail,
+				userPassword:    validPassword,
+				signInCsrfToken: validAuthCsrfToken,
+				signInWantCode:  http.StatusOK,
+				wantFormTag:     formTag,
+				wantCode:        http.StatusUnprocessableEntity,
+				title:           "Hello World",
+				content:         "Happy Birthday people",
+				expires:         "",
+				viewSnippetPath: "",
+			}, {
+				name:            "Authenticated and fail to create snippet when expires has wrong value",
+				userEmail:       validEmail,
+				userPassword:    validPassword,
+				signInCsrfToken: validAuthCsrfToken,
+				signInWantCode:  http.StatusOK,
+				wantFormTag:     formTag,
+				wantCode:        http.StatusUnprocessableEntity,
+				title:           "Hello World",
+				content:         "Happy Birthday people",
+				expires:         "4",
+				viewSnippetPath: "",
+			}, {
+				name:            "Authenticated and fail to create snippet when expires has wrong value",
+				userEmail:       validEmail,
+				userPassword:    validPassword,
+				signInCsrfToken: validAuthCsrfToken,
+				signInWantCode:  http.StatusOK,
+				wantFormTag:     formTag,
+				wantCode:        http.StatusUnprocessableEntity,
+				title:           aboveHundredLengthTitle,
+				content:         "Happy Birthday people",
+				expires:         "365",
+				viewSnippetPath: "",
+			}}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				form := url.Values{}
+				form.Add("email", tt.userEmail)
+				form.Add("password", tt.userPassword)
+				form.Add("csrf_token", tt.signInCsrfToken)
+				ts.postForm(t, "/user/login", form)
+
+				code, _, body := ts.get(t, "/snippet/create")
+				assert.Equal(t, code, tt.signInWantCode)
+				assert.StringContains(t, body, tt.wantFormTag)
+
+				newCsrfTokens := extractCSRFToken(t, body)
+				forms := url.Values{}
+				forms.Add("title", tt.title)
+				forms.Add("content", tt.content)
+				forms.Add("expires", tt.expires)
+				forms.Add("csrf_token", newCsrfTokens)
+
+				codes, headers, _ := ts.postForm(t, "/snippet/create", forms)
+				assert.Equal(t, codes, tt.wantCode)
+				assert.Equal(t, headers.Get("Location"), tt.viewSnippetPath)
+
+			})
+		}
+
+	})
+}

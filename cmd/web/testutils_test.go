@@ -101,6 +101,5 @@ func (ts *testServer) postForm(t *testing.T, urlPath string, form url.Values) (i
 	}
 
 	body = bytes.TrimSpace(body)
-
 	return rs.StatusCode, rs.Header, string(body)
 }
